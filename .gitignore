@@ -1,0 +1,23 @@
+# Secrets
+.env
+.env.prod
+.env.local
+.env.*.local
+
+# Cloudflare tunnel (production-specific, not for public repo)
+cloudflared/credentials.json
+cloudflared/config.yml
+
+# Signing keys
+keys/
+*.pem
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Docker overrides
+docker-compose.override.yml

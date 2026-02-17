@@ -1,0 +1,156 @@
+services:
+  # ── Database ──────────────────────────────────────────────
+  db:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_DB: phiacta
+      POSTGRES_USER: newpub
+      POSTGRES_PASSWORD: devpassword
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U newpub -d phiacta"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ── Backend API ───────────────────────────────────────────
+  backend:
+    build:
+      context: ../phiacta
+      dockerfile: Dockerfile
+      target: development
+    environment:
+      DATABASE_URL: "postgresql+asyncpg://newpub:devpassword@db:5432/phiacta"
+      OPENAI_API_KEY: "${OPENAI_API_KEY}"
+      JWT_SECRET_KEY: "dev-secret-not-for-production-use-only"
+      LOG_LEVEL: "debug"
+      ENVIRONMENT: "development"
+      CORS_ORIGINS: '["http://localhost:3001"]'
+    ports:
+      - "8000:8000"
+    volumes:
+      - ../phiacta/src:/app/src
+      - ../phiacta/extensions:/app/extensions
+    depends_on:
+      db:
+        condition: service_healthy
+    command: >
+      uvicorn phiacta.main:app
+      --host 0.0.0.0
+      --port 8000
+      --reload
+      --reload-dir /app/src
+
+  # ── Web Frontend ──────────────────────────────────────────
+  web:
+    build:
+      context: ../phiacta-web
+      dockerfile: Dockerfile
+      target: development
+    environment:
+      NEXT_PUBLIC_API_URL: "http://localhost:8000"
+      API_URL_INTERNAL: "http://backend:8000"
+    ports:
+      - "3001:3000"
+    volumes:
+      - ../phiacta-web/src:/app/src
+      - ../phiacta-web/public:/app/public
+    depends_on:
+      - backend
+
+  # ── Verification Service ──────────────────────────────────
+  verify-redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  verify:
+    build:
+      context: ../phiacta-verify
+      dockerfile: Dockerfile
+    environment:
+      VERIFY_REDIS_URL: "redis://verify-redis:6379/0"
+      VERIFY_PHIACTA_API_URL: "http://backend:8000"
+      VERIFY_PHIACTA_API_KEY: "dev-verify-key"
+      VERIFY_LOG_LEVEL: "debug"
+      VERIFY_CORS_ALLOWED_ORIGINS: '["http://localhost:3001"]'
+    ports:
+      - "8001:8000"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ../phiacta-verify/src:/app/src
+    depends_on:
+      verify-redis:
+        condition: service_healthy
+      backend:
+        condition: service_started
+    command: >
+      uvicorn phiacta_verify.main:app
+      --host 0.0.0.0
+      --port 8000
+      --reload
+      --reload-dir /app/src
+
+  # ── Runner Images (build only, not long-running) ──────────
+  verify-runner-python:
+    build:
+      context: ../phiacta-verify
+      dockerfile: containers/python/Dockerfile
+    image: phiacta-verify-runner-python:latest
+    profiles:
+      - build-runners
+
+  verify-runner-r:
+    build:
+      context: ../phiacta-verify
+      dockerfile: containers/r/Dockerfile
+    image: phiacta-verify-runner-r:latest
+    profiles:
+      - build-runners
+
+  verify-runner-julia:
+    build:
+      context: ../phiacta-verify
+      dockerfile: containers/julia/Dockerfile
+    image: phiacta-verify-runner-julia:latest
+    profiles:
+      - build-runners
+
+  verify-runner-lean4:
+    build:
+      context: ../phiacta-verify
+      dockerfile: containers/lean4/Dockerfile
+    image: phiacta-verify-runner-lean4:latest
+    profiles:
+      - build-runners
+
+  verify-runner-symbolic:
+    build:
+      context: ../phiacta-verify
+      dockerfile: containers/symbolic/Dockerfile
+    image: phiacta-verify-runner-symbolic:latest
+    profiles:
+      - build-runners
+
+  # ── Debug Tools ───────────────────────────────────────────
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    profiles: ["debug"]
+    environment:
+      PGADMIN_DEFAULT_EMAIL: dev@phiacta.local
+      PGADMIN_DEFAULT_PASSWORD: devpassword
+    ports:
+      - "5050:80"
+    depends_on:
+      - db
+
+volumes:
+  pgdata:

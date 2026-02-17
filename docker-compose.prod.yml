@@ -1,0 +1,139 @@
+services:
+  # ── Database ──────────────────────────────────────────────
+  db:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_DB: phiacta
+      POSTGRES_USER: newpub
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD}"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U newpub -d phiacta"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ── Backend API ───────────────────────────────────────────
+  backend:
+    build:
+      context: ../phiacta
+      dockerfile: Dockerfile
+      target: production
+    environment:
+      DATABASE_URL: "postgresql+asyncpg://newpub:${POSTGRES_PASSWORD}@db:5432/phiacta"
+      OPENAI_API_KEY: "${OPENAI_API_KEY}"
+      JWT_SECRET_KEY: "${JWT_SECRET_KEY}"
+      ENVIRONMENT: "production"
+      LOG_LEVEL: "info"
+      LOG_FORMAT: "json"
+      CORS_ORIGINS: '["https://phiacta.com"]'
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ── Web Frontend ──────────────────────────────────────────
+  web:
+    build:
+      context: ../phiacta-web
+      dockerfile: Dockerfile
+      target: production
+      args:
+        NEXT_PUBLIC_API_URL: "https://api.phiacta.com"
+    environment:
+      API_URL_INTERNAL: "http://backend:8000"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  # ── Verification Service ──────────────────────────────────
+  verify-redis:
+    image: redis:7-alpine
+    volumes:
+      - verify-redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  verify:
+    build:
+      context: ../phiacta-verify
+      dockerfile: Dockerfile
+    environment:
+      VERIFY_REDIS_URL: "redis://verify-redis:6379/0"
+      VERIFY_PHIACTA_API_URL: "http://backend:8000"
+      VERIFY_PHIACTA_API_KEY: "${VERIFY_API_KEY}"
+      VERIFY_SIGNING_KEY_PATH: "/keys/ed25519.pem"
+      VERIFY_LOG_LEVEL: "info"
+      VERIFY_CORS_ALLOWED_ORIGINS: '["https://phiacta.com"]'
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - verify-keys:/keys
+    depends_on:
+      verify-redis:
+        condition: service_healthy
+      backend:
+        condition: service_started
+    restart: unless-stopped
+
+  # ── Runner Images (build only, not long-running) ──────────
+  verify-runner-python:
+    build:
+      context: ../phiacta-verify
+      dockerfile: containers/python/Dockerfile
+    image: phiacta-verify-runner-python:latest
+    profiles:
+      - build-runners
+
+  verify-runner-r:
+    build:
+      context: ../phiacta-verify
+      dockerfile: containers/r/Dockerfile
+    image: phiacta-verify-runner-r:latest
+    profiles:
+      - build-runners
+
+  verify-runner-julia:
+    build:
+      context: ../phiacta-verify
+      dockerfile: containers/julia/Dockerfile
+    image: phiacta-verify-runner-julia:latest
+    profiles:
+      - build-runners
+
+  verify-runner-lean4:
+    build:
+      context: ../phiacta-verify
+      dockerfile: containers/lean4/Dockerfile
+    image: phiacta-verify-runner-lean4:latest
+    profiles:
+      - build-runners
+
+  verify-runner-symbolic:
+    build:
+      context: ../phiacta-verify
+      dockerfile: containers/symbolic/Dockerfile
+    image: phiacta-verify-runner-symbolic:latest
+    profiles:
+      - build-runners
+
+  # ── Cloudflare Tunnel ─────────────────────────────────────
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    command: tunnel --config /etc/cloudflared/config.yml run
+    volumes:
+      - ./cloudflared:/etc/cloudflared:ro
+    depends_on:
+      - web
+      - backend
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  verify-redis-data:
+  verify-keys:
