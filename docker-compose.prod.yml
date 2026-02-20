@@ -24,8 +24,14 @@ services:
       FORGEJO__server__HTTP_PORT: "3000"
       FORGEJO__service__DISABLE_REGISTRATION: "true"
       FORGEJO__security__INSTALL_LOCK: "true"
+      FORGEJO_ADMIN_USER: phiacta-admin
+      FORGEJO_ADMIN_PASSWORD: "${FORGEJO_ADMIN_PASSWORD}"
+      FORGEJO_ADMIN_EMAIL: admin@phiacta.local
+      FORGEJO_ORG: phiacta
     volumes:
       - forgejo_data:/data
+      - ../phiacta/docker/forgejo-entrypoint.sh:/forgejo-entrypoint.sh:ro
+    entrypoint: ["/bin/sh", "/forgejo-entrypoint.sh"]
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000/api/v1/version"]
       interval: 10s
@@ -33,24 +39,6 @@ services:
       retries: 10
       start_period: 30s
     restart: unless-stopped
-
-  forgejo-init:
-    image: codeberg.org/forgejo/forgejo:10
-    depends_on:
-      forgejo:
-        condition: service_healthy
-    volumes:
-      - forgejo_data:/data
-      - forgejo_token:/run/secrets
-      - ../phiacta/docker/forgejo-init.sh:/init.sh:ro
-    environment:
-      FORGEJO_WORK_DIR: /data/gitea
-      FORGEJO_CUSTOM: /data/gitea
-      FORGEJO_ADMIN_USER: phiacta-admin
-      FORGEJO_ADMIN_PASSWORD: "${FORGEJO_ADMIN_PASSWORD}"
-      FORGEJO_ORG: phiacta
-    entrypoint: ["sh", "/init.sh"]
-    restart: "no"
 
   # ── Backend API ───────────────────────────────────────────
   backend:
@@ -67,16 +55,15 @@ services:
       LOG_FORMAT: "json"
       CORS_ORIGINS: '["https://phiacta.com"]'
       FORGEJO_URL: "http://forgejo:3000"
-      FORGEJO_TOKEN_FILE: "/run/secrets/forgejo-token"
+      FORGEJO_ADMIN_USER: "phiacta-admin"
+      FORGEJO_ADMIN_PASSWORD: "${FORGEJO_ADMIN_PASSWORD}"
       FORGEJO_ORG: "phiacta"
       FORGEJO_WEBHOOK_SECRET: "${FORGEJO_WEBHOOK_SECRET}"
-    volumes:
-      - forgejo_token:/run/secrets:ro
     depends_on:
       db:
         condition: service_healthy
-      forgejo-init:
-        condition: service_completed_successfully
+      forgejo:
+        condition: service_healthy
     restart: unless-stopped
 
   # ── Web Frontend ──────────────────────────────────────────
@@ -181,6 +168,5 @@ services:
 volumes:
   pgdata:
   forgejo_data:
-  forgejo_token:
   verify-redis-data:
   verify-keys:
