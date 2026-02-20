@@ -15,6 +15,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPOS=(
+    "$SCRIPT_DIR"
     "$SCRIPT_DIR/../phiacta"
     "$SCRIPT_DIR/../phiacta-web"
     "$SCRIPT_DIR/../phiacta-verify"
