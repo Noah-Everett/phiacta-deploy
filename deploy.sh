@@ -42,6 +42,27 @@ compose_prod() {
     docker compose -f "$SCRIPT_DIR/docker-compose.prod.yml" --env-file "$SCRIPT_DIR/.env.prod" "$@"
 }
 
+purge_cloudflare_cache() {
+    # Requires CLOUDFLARE_ZONE_ID and CLOUDFLARE_API_TOKEN in .env.prod
+    if [ -f "$SCRIPT_DIR/.env.prod" ]; then
+        CF_ZONE=$(grep -s '^CLOUDFLARE_ZONE_ID=' "$SCRIPT_DIR/.env.prod" | cut -d= -f2- | tr -d '"')
+        CF_TOKEN=$(grep -s '^CLOUDFLARE_API_TOKEN=' "$SCRIPT_DIR/.env.prod" | cut -d= -f2- | tr -d '"')
+    fi
+    if [ -n "${CF_ZONE:-}" ] && [ -n "${CF_TOKEN:-}" ]; then
+        echo "==> Purging Cloudflare cache..."
+        curl -sf -X POST \
+            "https://api.cloudflare.com/client/v4/zones/$CF_ZONE/purge_cache" \
+            -H "Authorization: Bearer $CF_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d '{"purge_everything":true}' > /dev/null \
+            && echo "    Cache purged." \
+            || echo "    Warning: cache purge failed (non-critical)."
+    else
+        echo "==> Skipping Cloudflare cache purge (CLOUDFLARE_ZONE_ID / CLOUDFLARE_API_TOKEN not set)."
+    fi
+    echo ""
+}
+
 case "${1:-prod}" in
     prod)
         pull_all
@@ -53,6 +74,8 @@ case "${1:-prod}" in
         echo ""
         echo "==> Production stack is up."
         compose_prod ps
+        echo ""
+        purge_cloudflare_cache
         ;;
 
     dev)
