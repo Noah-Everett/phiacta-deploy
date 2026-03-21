@@ -26,17 +26,12 @@ cat > "$ENV_FILE" <<EOF
 POSTGRES_PASSWORD=$(secret 32)
 
 # ── Backend ─────────────────────────────────────────────────
-OPENAI_API_KEY=
 JWT_SECRET_KEY=$(secret 48)
 
 # ── Forgejo (git backend) ──────────────────────────────────
 FORGEJO_ADMIN_PASSWORD=$(secret 32)
 FORGEJO_WEBHOOK_SECRET=$(secret 32)
-
-# ── Verification Service ────────────────────────────────────
-VERIFY_API_KEY=$(secret 32)
 EOF
 
 chmod 600 "$ENV_FILE"
 echo "Generated $ENV_FILE"
-echo "Remember to fill in OPENAI_API_KEY before deploying."
