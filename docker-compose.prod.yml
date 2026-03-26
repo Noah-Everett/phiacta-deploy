@@ -58,7 +58,7 @@ services:
       FORGEJO_ADMIN_PASSWORD: "${FORGEJO_ADMIN_PASSWORD}"
       FORGEJO_ORG: "phiacta"
       FORGEJO_WEBHOOK_SECRET: "${FORGEJO_WEBHOOK_SECRET}"
-      ENABLED_PLUGINS: '["tags", "search_tsv"]'
+      ENABLED_PLUGINS: '["metadata", "types", "references", "tags", "search_tsv", "search"]'
     depends_on:
       db:
         condition: service_healthy
