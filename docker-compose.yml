@@ -25,6 +25,10 @@ services:
       FORGEJO__server__HTTP_PORT: "3000"
       FORGEJO__service__DISABLE_REGISTRATION: "false"
       FORGEJO__security__INSTALL_LOCK: "true"
+      # Allow webhook delivery to Docker-internal hosts (backend container)
+      FORGEJO__webhook__ALLOWED_HOST_LIST: "*"
+      # Flush webhook queue immediately (default batches 20)
+      FORGEJO__queue__BATCH_LENGTH: "1"
       FORGEJO_ADMIN_USER: phiacta-admin
       FORGEJO_ADMIN_PASSWORD: phiacta-dev-password
       FORGEJO_ADMIN_EMAIL: admin@phiacta.local
