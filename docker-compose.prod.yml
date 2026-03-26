@@ -1,3 +1,5 @@
+name: phiacta-dep
+
 services:
   # ── Database ──────────────────────────────────────────────
   db:

@@ -1,3 +1,5 @@
+name: phiacta-dev
+
 services:
   # ── Database ──────────────────────────────────────────────
   db:
@@ -50,7 +52,7 @@ services:
   backend:
     build:
       context: ${BACKEND_PATH:-../phiacta}
-      dockerfile: Dockerfile
+      dockerfile: docker/Dockerfile
       target: development
     environment:
       DATABASE_URL: "postgresql+asyncpg://phiacta:devpassword@db:5432/phiacta"
