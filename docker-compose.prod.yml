@@ -7,7 +7,7 @@ services:
       POSTGRES_USER: phiacta
       POSTGRES_PASSWORD: "${POSTGRES_PASSWORD}"
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      - /Volumes/SSD/phiacta/data/postgres:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U phiacta -d phiacta"]
       interval: 10s
@@ -31,7 +31,7 @@ services:
       FORGEJO_ADMIN_EMAIL: admin@phiacta.local
       FORGEJO_ORG: phiacta
     volumes:
-      - forgejo_data:/data
+      - /Volumes/SSD/phiacta/data/forgejo:/data
       - ../phiacta/docker/forgejo-entrypoint.sh:/forgejo-entrypoint.sh:ro
     entrypoint: ["/bin/sh", "/forgejo-entrypoint.sh"]
     healthcheck:
@@ -93,6 +93,3 @@ services:
       - backend
     restart: unless-stopped
 
-volumes:
-  pgdata:
-  forgejo_data:
