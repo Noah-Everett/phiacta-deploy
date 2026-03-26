@@ -1,4 +1,4 @@
-name: phiacta-dep
+name: phiacta-prod
 
 services:
   # ── Database ──────────────────────────────────────────────
