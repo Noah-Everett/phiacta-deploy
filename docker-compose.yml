@@ -1,4 +1,4 @@
-name: phiacta-dev
+name: ${COMPOSE_PROJECT_NAME:-phiacta}
 
 services:
   # ── Database ──────────────────────────────────────────────

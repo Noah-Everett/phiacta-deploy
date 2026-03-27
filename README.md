@@ -61,6 +61,7 @@ cp .env.example .env
 
 | Variable | Default | Description |
 |----------|---------|-------------|
+| `COMPOSE_PROJECT_NAME` | `phiacta` | Docker Compose project name |
 | `BACKEND_PATH` | `../phiacta` | Path to the backend repo |
 | `WEB_PATH` | `../phiacta-web` | Path to the web repo |
 | `FORGEJO_PORT` | `3000` | Host port for Forgejo |
