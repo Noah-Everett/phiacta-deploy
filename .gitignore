@@ -1,12 +1,10 @@
-# Secrets
+# Environment files (may contain secrets or local overrides)
 .env
-.env.prod
-.env.local
-.env.*.local
+.env.*
+!.env.example
 
-# Cloudflare tunnel (production-specific, not for public repo)
-cloudflared/credentials.json
-cloudflared/config.yml
+# Cloudflare tunnel credentials
+cloudflared/
 
 # Signing keys
 keys/

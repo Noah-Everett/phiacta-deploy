@@ -1,133 +1,135 @@
 #!/usr/bin/env bash
-set -euo pipefail
-
-# Deploy script for the phiacta platform
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# Generic deploy script for phiacta stacks.
 #
 # Usage:
-#   ./deploy.sh              # Pull + build + start (production)
-#   ./deploy.sh dev          # Pull + build + start (development)
-#   ./deploy.sh pull         # Pull all repos only
-#   ./deploy.sh down         # Stop all services
-#   ./deploy.sh down dev     # Stop dev services
-#   ./deploy.sh logs         # Tail production logs
-#   ./deploy.sh logs dev     # Tail dev logs
+#   ./deploy.sh                    Start the default stack (docker-compose.yml)
+#   ./deploy.sh <type>             Start a named stack (docker-compose.<type>.yml)
+#   ./deploy.sh [type] <command>   Run a command against a stack
+#
+# Commands: up (default), down, logs, status, pull, or any docker compose command.
+#
+# Env files are loaded automatically:
+#   .env          — always loaded if present (shared overrides)
+#   .env.<type>   — loaded for named stacks (stack-specific secrets/overrides)
+
+set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-REPOS=(
-    "$SCRIPT_DIR"
-    "$SCRIPT_DIR/../phiacta"
-    "$SCRIPT_DIR/../phiacta-web"
-)
 
-pull_all() {
-    echo "==> Pulling all repositories..."
-    for repo in "${REPOS[@]}"; do
-        if [ -d "$repo/.git" ]; then
-            echo "    $(basename "$repo")..."
-            git -C "$repo" pull --ff-only
-        else
-            echo "    $(basename "$repo") — skipped (not a git repo or missing)"
-        fi
+# ── Helpers ────────────────────────────────────────────────────
+
+is_command() {
+    case "$1" in up|down|logs|status|pull) return 0 ;; *) return 1 ;; esac
+}
+
+list_stacks() {
+    echo "Available stacks:"
+    echo "  (default)  docker-compose.yml"
+    for f in "$SCRIPT_DIR"/docker-compose.*.yml; do
+        [ -f "$f" ] || continue
+        name="$(basename "$f" .yml)"
+        name="${name#docker-compose.}"
+        echo "  $name"
+    done
+}
+
+usage() {
+    echo "Usage: $0 [type] [command] [args...]"
+    echo ""
+    echo "Commands: up (default), down, logs, status, pull,"
+    echo "          or any docker compose command."
+    echo ""
+    list_stacks
+    exit 1
+}
+
+# ── Parse arguments ────────────────────────────────────────────
+
+STACK_TYPE=""
+ARG1="${1:-}"
+
+if [ -z "$ARG1" ]; then
+    COMPOSE_FILE="$SCRIPT_DIR/docker-compose.yml"
+    COMMAND="up"
+elif is_command "$ARG1"; then
+    # First arg is a known command — use the default compose file
+    COMPOSE_FILE="$SCRIPT_DIR/docker-compose.yml"
+    COMMAND="$ARG1"
+    shift
+elif [ -f "$SCRIPT_DIR/docker-compose.${ARG1}.yml" ]; then
+    # First arg is a stack type
+    STACK_TYPE="$ARG1"
+    COMPOSE_FILE="$SCRIPT_DIR/docker-compose.${STACK_TYPE}.yml"
+    shift
+    COMMAND="${1:-up}"
+    [ $# -gt 0 ] && shift
+else
+    # Unknown — pass through to docker compose on the default file
+    COMPOSE_FILE="$SCRIPT_DIR/docker-compose.yml"
+    COMMAND="$ARG1"
+    shift
+fi
+
+if [ ! -f "$COMPOSE_FILE" ]; then
+    echo "Error: $(basename "$COMPOSE_FILE") not found."
+    echo ""
+    list_stacks
+    exit 1
+fi
+
+# ── Build compose command with env files ───────────────────────
+
+COMPOSE_CMD=(docker compose -f "$COMPOSE_FILE")
+[ -f "$SCRIPT_DIR/.env" ]                                              && COMPOSE_CMD+=(--env-file "$SCRIPT_DIR/.env")
+[ -n "$STACK_TYPE" ] && [ -f "$SCRIPT_DIR/.env.${STACK_TYPE}" ]        && COMPOSE_CMD+=(--env-file "$SCRIPT_DIR/.env.${STACK_TYPE}")
+
+compose() { "${COMPOSE_CMD[@]}" "$@"; }
+
+# ── Pull sibling repos ────────────────────────────────────────
+
+pull_repos() {
+    echo "==> Pulling repositories..."
+    for repo in "$SCRIPT_DIR" "$SCRIPT_DIR"/../*/; do
+        [ -d "$repo/.git" ] || continue
+        name="$(cd "$repo" && basename "$(pwd)")"
+        echo "    $name"
+        git -C "$repo" pull --ff-only 2>/dev/null \
+            || echo "      (skipped — not on a tracking branch or diverged)"
     done
     echo ""
 }
 
-compose_dev() {
-    docker compose -f "$SCRIPT_DIR/docker-compose.yml" "$@"
-}
+# ── Run command ────────────────────────────────────────────────
 
-compose_prod() {
-    docker compose -f "$SCRIPT_DIR/docker-compose.prod.yml" --env-file "$SCRIPT_DIR/.env.prod" "$@"
-}
+LABEL="${STACK_TYPE:-default}"
 
-purge_cloudflare_cache() {
-    # Requires CLOUDFLARE_ZONE_ID and CLOUDFLARE_API_TOKEN in .env.prod
-    if [ -f "$SCRIPT_DIR/.env.prod" ]; then
-        CF_ZONE=$(grep -s '^CLOUDFLARE_ZONE_ID=' "$SCRIPT_DIR/.env.prod" | cut -d= -f2- | tr -d '"')
-        CF_TOKEN=$(grep -s '^CLOUDFLARE_API_TOKEN=' "$SCRIPT_DIR/.env.prod" | cut -d= -f2- | tr -d '"')
-    fi
-    if [ -n "${CF_ZONE:-}" ] && [ -n "${CF_TOKEN:-}" ]; then
-        echo "==> Purging Cloudflare cache..."
-        curl -sf -X POST \
-            "https://api.cloudflare.com/client/v4/zones/$CF_ZONE/purge_cache" \
-            -H "Authorization: Bearer $CF_TOKEN" \
-            -H "Content-Type: application/json" \
-            -d '{"purge_everything":true}' > /dev/null \
-            && echo "    Cache purged." \
-            || echo "    Warning: cache purge failed (non-critical)."
-    else
-        echo "==> Skipping Cloudflare cache purge (CLOUDFLARE_ZONE_ID / CLOUDFLARE_API_TOKEN not set)."
-    fi
-    echo ""
-}
-
-case "${1:-prod}" in
-    prod)
-        pull_all
-        echo "==> Starting production services..."
-        compose_prod up -d --build
+case "$COMMAND" in
+    up)
+        echo "==> Starting $LABEL stack..."
+        compose up -d --build
         echo ""
-        echo "==> Production stack is up."
-        compose_prod ps
-        echo ""
-        purge_cloudflare_cache
+        compose ps
         ;;
-
-    dev)
-        pull_all
-        echo "==> Starting development services..."
-        compose_dev up -d --build
-        echo ""
-        echo "==> Dev stack is up."
-        echo "    Backend:  http://localhost:8000"
-        echo "    Frontend: http://localhost:3001"
-        echo ""
-        compose_dev ps
-        ;;
-
-    pull)
-        pull_all
-        ;;
-
     down)
-        ENV="${2:-prod}"
-        echo "==> Stopping services..."
-        if [ "$ENV" = "dev" ]; then
-            compose_dev down
-        else
-            compose_prod down
-        fi
+        echo "==> Stopping $LABEL stack..."
+        compose down "$@"
         ;;
-
     logs)
-        ENV="${2:-prod}"
-        SERVICES="${3:-}"
-        if [ "$ENV" = "dev" ]; then
-            compose_dev logs -f $SERVICES
-        else
-            compose_prod logs -f $SERVICES
-        fi
+        compose logs -f "$@"
         ;;
-
     status)
-        ENV="${2:-prod}"
-        if [ "$ENV" = "dev" ]; then
-            compose_dev ps
-        else
-            compose_prod ps
-        fi
+        compose ps "$@"
         ;;
-
-    *)
-        echo "Usage: $0 {prod|dev|pull|down|logs|status} [dev|prod]"
+    pull)
+        pull_repos
+        echo "==> Starting $LABEL stack..."
+        compose up -d --build
         echo ""
-        echo "Commands:"
-        echo "  prod           Pull, build, start production stack"
-        echo "  dev            Pull, build, start dev stack"
-        echo "  pull           Pull all repositories"
-        echo "  down [env]     Stop services (default: prod)"
-        echo "  logs [env]     Tail logs (default: prod)"
-        echo "  status [env]   Show service status (default: prod)"
-        exit 1
+        compose ps
+        ;;
+    *)
+        compose "$COMMAND" "$@"
         ;;
 esac

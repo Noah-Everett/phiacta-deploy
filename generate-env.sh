@@ -1,16 +1,26 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: GPL-3.0-or-later
-# Generate a .env.prod file with random secrets.
+# Generate an .env file with random secrets for a named stack.
 #
 # Usage:
-#   ./generate-env.sh              # writes .env.prod (won't overwrite)
-#   ./generate-env.sh --force      # overwrites existing .env.prod
+#   ./generate-env.sh <type>          # writes .env.<type> (won't overwrite)
+#   ./generate-env.sh <type> --force  # overwrites existing file
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-ENV_FILE="$SCRIPT_DIR/.env.prod"
+TYPE="${1:-}"
 
-if [ -f "$ENV_FILE" ] && [ "${1:-}" != "--force" ]; then
+if [ -z "$TYPE" ]; then
+    echo "Usage: $0 <type> [--force]"
+    echo ""
+    echo "Generates .env.<type> with random secrets."
+    echo "Example: $0 prod"
+    exit 1
+fi
+
+ENV_FILE="$SCRIPT_DIR/.env.${TYPE}"
+
+if [ -f "$ENV_FILE" ] && [ "${2:-}" != "--force" ]; then
     echo "Error: $ENV_FILE already exists."
     echo "Use --force to overwrite, or edit it directly."
     exit 1

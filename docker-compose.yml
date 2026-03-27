@@ -59,7 +59,7 @@ services:
       JWT_SECRET_KEY: "dev-secret-not-for-production-use-only"
       LOG_LEVEL: "debug"
       ENVIRONMENT: "development"
-      CORS_ORIGINS: '["http://localhost:3001","http://localhost:3003","http://100.64.0.1:3003"]'
+      CORS_ORIGINS: '["http://localhost:3001","http://localhost:3003"]'
       FORGEJO_URL: "http://forgejo:3000"
       FORGEJO_ADMIN_USER: "phiacta-admin"
       FORGEJO_ADMIN_PASSWORD: "phiacta-dev-password"
