@@ -19,3 +19,6 @@ Thumbs.db
 
 # Docker overrides
 docker-compose.override.yml
+
+# Prod compose (local-only, not tracked)
+docker-compose.prod.yml
