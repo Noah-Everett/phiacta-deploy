@@ -83,6 +83,29 @@ services:
       --reload
       --reload-dir /app/src
 
+  # ── LaTeX Worker ─────────────────────────────────────────
+  worker-latex:
+    build:
+      context: ${BACKEND_PATH:-../phiacta}
+      dockerfile: docker/Dockerfile
+      target: worker-latex
+    environment:
+      DATABASE_URL: "postgresql+asyncpg://phiacta:devpassword@db:5432/phiacta"
+      JWT_SECRET_KEY: "dev-secret-not-for-production-use-only"
+      LOG_LEVEL: "debug"
+      ENVIRONMENT: "development"
+      FORGEJO_URL: "http://forgejo:3000"
+      FORGEJO_ADMIN_USER: "phiacta-admin"
+      FORGEJO_ADMIN_PASSWORD: "phiacta-dev-password"
+      FORGEJO_ORG: "phiacta"
+      ENABLED_PLUGINS: '["compiled_content"]'
+      JOB_TYPES: '["compiled_content"]'
+    depends_on:
+      db:
+        condition: service_healthy
+      forgejo:
+        condition: service_healthy
+
   # ── Web Frontend ──────────────────────────────────────────
   web:
     build:
