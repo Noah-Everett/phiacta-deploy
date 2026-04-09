@@ -89,6 +89,7 @@ services:
       context: ${BACKEND_PATH:-../phiacta}
       dockerfile: docker/Dockerfile
       target: worker-latex
+    restart: unless-stopped
     environment:
       DATABASE_URL: "postgresql+asyncpg://phiacta:devpassword@db:5432/phiacta"
       JWT_SECRET_KEY: "dev-secret-not-for-production-use-only"
