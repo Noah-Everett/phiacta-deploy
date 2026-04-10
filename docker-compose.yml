@@ -33,6 +33,9 @@ services:
       FORGEJO__webhook__ALLOWED_HOST_LIST: "*"
       # Flush webhook queue immediately (default batches 20)
       FORGEJO__queue__BATCH_LENGTH: "1"
+      # Soft quota: limit total storage per user/org
+      FORGEJO__quota__ENABLED: "true"
+      FORGEJO__quota_0X2E_default__TOTAL: "2G"
       FORGEJO_ADMIN_USER: phiacta-admin
       FORGEJO_ADMIN_PASSWORD: phiacta-dev-password
       FORGEJO_ADMIN_EMAIL: admin@phiacta.local
