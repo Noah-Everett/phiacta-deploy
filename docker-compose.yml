@@ -150,7 +150,7 @@ services:
       resources:
         limits:
           cpus: '1.0'
-          memory: 1g
+          memory: 2g
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000"]
       interval: 10s
