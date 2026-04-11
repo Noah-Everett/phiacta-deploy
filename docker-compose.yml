@@ -5,6 +5,11 @@ services:
   db:
     image: pgvector/pgvector:pg16
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2g
     environment:
       POSTGRES_DB: phiacta
       POSTGRES_USER: phiacta
@@ -23,14 +28,19 @@ services:
   forgejo:
     image: codeberg.org/forgejo/forgejo:10
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1g
     environment:
       FORGEJO__database__DB_TYPE: sqlite3
       FORGEJO__server__ROOT_URL: http://forgejo:3000
       FORGEJO__server__HTTP_PORT: "3000"
       FORGEJO__service__DISABLE_REGISTRATION: "false"
       FORGEJO__security__INSTALL_LOCK: "true"
-      # Allow webhook delivery to Docker-internal hosts (backend container)
-      FORGEJO__webhook__ALLOWED_HOST_LIST: "*"
+      # Allow webhook delivery only to the backend container (prevents SSRF).
+      FORGEJO__webhook__ALLOWED_HOST_LIST: "backend,localhost,127.0.0.1"
       # Flush webhook queue immediately (default batches 20)
       FORGEJO__queue__BATCH_LENGTH: "1"
       # Soft quota: limit total storage per user/org
@@ -60,6 +70,17 @@ services:
       dockerfile: docker/Dockerfile
       target: development
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2g
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
     environment:
       DATABASE_URL: "postgresql+asyncpg://phiacta:devpassword@db:5432/phiacta"
       JWT_SECRET_KEY: "dev-secret-not-for-production-use-only"
@@ -96,6 +117,11 @@ services:
       dockerfile: docker/Dockerfile
       target: worker-latex
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 3g
     environment:
       DATABASE_URL: "postgresql+asyncpg://phiacta:devpassword@db:5432/phiacta"
       JWT_SECRET_KEY: "dev-secret-not-for-production-use-only"
@@ -120,6 +146,17 @@ services:
       dockerfile: Dockerfile
       target: development
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1g
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
     environment:
       NEXT_PUBLIC_API_URL: "${NEXT_PUBLIC_API_URL:-http://localhost:8000}"
       API_URL_INTERNAL: "http://backend:8000"
@@ -129,7 +166,8 @@ services:
       - ${WEB_PATH:-../phiacta-web}/src:/app/src
       - ${WEB_PATH:-../phiacta-web}/public:/app/public
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
 
   # ── Debug Tools ───────────────────────────────────────────
   pgadmin:
