@@ -56,8 +56,11 @@ services:
       - forgejo_data:/data
       - ${BACKEND_PATH:-../phiacta}/docker/forgejo-entrypoint.sh:/forgejo-entrypoint.sh:ro
     entrypoint: ["/bin/sh", "/forgejo-entrypoint.sh"]
+    # Healthcheck waits for the version endpoint AND for the bootstrap
+    # entrypoint to finish creating the org, otherwise backend startup races
+    # against admin-user/org/team creation and first requests 502.
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/api/v1/version"]
+      test: ["CMD-SHELL", "curl -sf http://localhost:3000/api/v1/version && curl -sf -u $${FORGEJO_ADMIN_USER}:$${FORGEJO_ADMIN_PASSWORD} http://localhost:3000/api/v1/orgs/$${FORGEJO_ORG}"]
       interval: 10s
       timeout: 5s
       retries: 10
