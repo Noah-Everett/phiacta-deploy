@@ -4,6 +4,12 @@ services:
   # ── Database ──────────────────────────────────────────────
   db:
     image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2g
     environment:
       POSTGRES_DB: phiacta
       POSTGRES_USER: phiacta
@@ -21,16 +27,25 @@ services:
   # ── Forgejo (git backend) ───────────────────────────────
   forgejo:
     image: codeberg.org/forgejo/forgejo:10
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1g
     environment:
       FORGEJO__database__DB_TYPE: sqlite3
       FORGEJO__server__ROOT_URL: http://forgejo:3000
       FORGEJO__server__HTTP_PORT: "3000"
       FORGEJO__service__DISABLE_REGISTRATION: "false"
       FORGEJO__security__INSTALL_LOCK: "true"
-      # Allow webhook delivery to Docker-internal hosts (backend container)
-      FORGEJO__webhook__ALLOWED_HOST_LIST: "*"
+      # Allow webhook delivery only to the backend container (prevents SSRF).
+      FORGEJO__webhook__ALLOWED_HOST_LIST: "backend,localhost,127.0.0.1"
       # Flush webhook queue immediately (default batches 20)
       FORGEJO__queue__BATCH_LENGTH: "1"
+      # Soft quota: limit total storage per user/org
+      FORGEJO__quota__ENABLED: "true"
+      FORGEJO__quota_0X2E_default__TOTAL: "2G"
       FORGEJO_ADMIN_USER: phiacta-admin
       FORGEJO_ADMIN_PASSWORD: phiacta-dev-password
       FORGEJO_ADMIN_EMAIL: admin@phiacta.local
@@ -41,8 +56,11 @@ services:
       - forgejo_data:/data
       - ${BACKEND_PATH:-../phiacta}/docker/forgejo-entrypoint.sh:/forgejo-entrypoint.sh:ro
     entrypoint: ["/bin/sh", "/forgejo-entrypoint.sh"]
+    # Healthcheck waits for the version endpoint AND for the bootstrap
+    # entrypoint to finish creating the org, otherwise backend startup races
+    # against admin-user/org/team creation and first requests 502.
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/api/v1/version"]
+      test: ["CMD-SHELL", "curl -sf http://localhost:3000/api/v1/version && curl -sf -u $${FORGEJO_ADMIN_USER}:$${FORGEJO_ADMIN_PASSWORD} http://localhost:3000/api/v1/orgs/$${FORGEJO_ORG}"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -54,6 +72,18 @@ services:
       context: ${BACKEND_PATH:-../phiacta}
       dockerfile: docker/Dockerfile
       target: development
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2g
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
     environment:
       DATABASE_URL: "postgresql+asyncpg://phiacta:devpassword@db:5432/phiacta"
       JWT_SECRET_KEY: "dev-secret-not-for-production-use-only"
@@ -65,7 +95,7 @@ services:
       FORGEJO_ADMIN_PASSWORD: "phiacta-dev-password"
       FORGEJO_ORG: "phiacta"
       FORGEJO_WEBHOOK_SECRET: "dev-webhook-secret-not-for-production"
-      ENABLED_PLUGINS: '["metadata", "types", "references", "tags", "search_tsv", "search", "graph"]'
+      ENABLED_PLUGINS: '["metadata", "types", "references", "tags", "search_tsv", "compiled_content", "search", "graph"]'
     ports:
       - "8000:8000"
     volumes:
@@ -83,12 +113,53 @@ services:
       --reload
       --reload-dir /app/src
 
+  # ── LaTeX Worker ─────────────────────────────────────────
+  worker-latex:
+    build:
+      context: ${BACKEND_PATH:-../phiacta}
+      dockerfile: docker/Dockerfile
+      target: worker-latex
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 3g
+    environment:
+      DATABASE_URL: "postgresql+asyncpg://phiacta:devpassword@db:5432/phiacta"
+      JWT_SECRET_KEY: "dev-secret-not-for-production-use-only"
+      LOG_LEVEL: "debug"
+      ENVIRONMENT: "development"
+      FORGEJO_URL: "http://forgejo:3000"
+      FORGEJO_ADMIN_USER: "phiacta-admin"
+      FORGEJO_ADMIN_PASSWORD: "phiacta-dev-password"
+      FORGEJO_ORG: "phiacta"
+      ENABLED_PLUGINS: '["compiled_content"]'
+      JOB_TYPES: '["compiled_content"]'
+    depends_on:
+      db:
+        condition: service_healthy
+      forgejo:
+        condition: service_healthy
+
   # ── Web Frontend ──────────────────────────────────────────
   web:
     build:
       context: ${WEB_PATH:-../phiacta-web}
       dockerfile: Dockerfile
       target: development
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 2g
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
     environment:
       NEXT_PUBLIC_API_URL: "${NEXT_PUBLIC_API_URL:-http://localhost:8000}"
       API_URL_INTERNAL: "http://backend:8000"
@@ -98,7 +169,8 @@ services:
       - ${WEB_PATH:-../phiacta-web}/src:/app/src
       - ${WEB_PATH:-../phiacta-web}/public:/app/public
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
 
   # ── Debug Tools ───────────────────────────────────────────
   pgadmin:
