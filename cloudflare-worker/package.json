@@ -1,0 +1,19 @@
+{
+  "name": "phiacta-edge-worker",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Cloudflare Worker that serves a Phiacta-branded page when the origin is unreachable.",
+  "scripts": {
+    "dev": "dotenv -- wrangler dev",
+    "deploy": "dotenv -- wrangler deploy",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20240909.0",
+    "dotenv-cli": "^7.4.2",
+    "typescript": "^5.4.5",
+    "vitest": "^2.1.4",
+    "wrangler": "^4.0.0"
+  }
+}

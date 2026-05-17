@@ -87,6 +87,45 @@ COMPOSE_CMD=(docker compose -f "$COMPOSE_FILE")
 
 compose() { "${COMPOSE_CMD[@]}" "$@"; }
 
+# ── Cloudflare Worker deploy ──────────────────────────────────
+
+# Pushes the edge Worker (Phiacta-branded origin-down page) to Cloudflare.
+# Skips silently if CLOUDFLARE_API_TOKEN isn't set in the loaded env files.
+# Runs in a subshell so the env-file sourcing doesn't leak into the parent.
+deploy_cloudflare_worker() {
+    local worker_dir="$SCRIPT_DIR/cloudflare-worker"
+    [ -d "$worker_dir" ] || return 0
+
+    (
+        set +u
+        set -a
+        [ -f "$SCRIPT_DIR/.env" ] && . "$SCRIPT_DIR/.env"
+        [ -n "${STACK_TYPE:-}" ] && [ -f "$SCRIPT_DIR/.env.${STACK_TYPE}" ] \
+            && . "$SCRIPT_DIR/.env.${STACK_TYPE}"
+        set +a
+        set -u
+
+        if [ -z "${CLOUDFLARE_API_TOKEN:-}" ]; then
+            echo "==> Cloudflare Worker: skipped (CLOUDFLARE_API_TOKEN not set in .env${STACK_TYPE:+ or .env.${STACK_TYPE}})"
+            exit 0
+        fi
+
+        echo "==> Deploying Cloudflare Worker..."
+        docker run --rm \
+            -e CLOUDFLARE_API_TOKEN \
+            -e CLOUDFLARE_ACCOUNT_ID \
+            -v "$worker_dir":/worker \
+            -w /worker \
+            node:20-slim \
+            sh -euc '
+              if [ ! -d node_modules ] || [ package-lock.json -nt node_modules/.package-lock.json ]; then
+                npm ci --silent --no-audit --no-fund
+              fi
+              npx wrangler deploy
+            '
+    )
+}
+
 # ── Pull sibling repos ────────────────────────────────────────
 
 pull_repos() {
@@ -111,6 +150,7 @@ case "$COMMAND" in
         compose up -d --build
         echo ""
         compose ps
+        deploy_cloudflare_worker
         ;;
     down)
         echo "==> Stopping $LABEL stack..."
@@ -128,6 +168,7 @@ case "$COMMAND" in
         compose up -d --build
         echo ""
         compose ps
+        deploy_cloudflare_worker
         ;;
     *)
         compose "$COMMAND" "$@"

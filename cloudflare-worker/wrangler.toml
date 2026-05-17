@@ -1,0 +1,15 @@
+name = "phiacta-edge"
+main = "src/index.ts"
+compatibility_date = "2026-05-01"
+workers_dev = false
+
+# Routes — both phiacta.com and api.phiacta.com go through the Worker so the
+# down-page can render in the same brand for either hostname. Add www if the
+# zone serves it.
+[[routes]]
+pattern = "phiacta.com/*"
+zone_name = "phiacta.com"
+
+[[routes]]
+pattern = "api.phiacta.com/*"
+zone_name = "phiacta.com"
