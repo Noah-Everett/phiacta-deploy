@@ -116,7 +116,7 @@ deploy_cloudflare_worker() {
             -e CLOUDFLARE_ACCOUNT_ID \
             -v "$worker_dir":/worker \
             -w /worker \
-            node:20-slim \
+            node:22-slim \
             sh -euc '
               if [ ! -d node_modules ] || [ package-lock.json -nt node_modules/.package-lock.json ]; then
                 npm ci --silent --no-audit --no-fund

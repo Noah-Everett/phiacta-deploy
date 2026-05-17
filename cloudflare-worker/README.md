@@ -63,7 +63,7 @@ automatically.
 `../deploy.sh up` and `../deploy.sh pull` (for any stack) also push the
 Worker when `CLOUDFLARE_API_TOKEN` is set in the loaded env files
 (`.env`, `.env.<stack>`). The Worker deploy runs inside a
-`node:20-slim` container, so no host Node install is needed. Example:
+`node:22-slim` container, so no host Node install is needed. Example:
 
 ```bash
 # On the prod box, with CLOUDFLARE_API_TOKEN in .env.prod
