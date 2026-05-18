@@ -17,6 +17,14 @@ describe("renderDownHtml", () => {
     expect(html).toContain("Phiacta API is offline");
     expect(html).toContain("Open phiacta.com");
   });
+
+  it("includes a contact mailto for both variants", () => {
+    for (const isApi of [false, true]) {
+      const html = renderDownHtml({ isApi });
+      expect(html).toContain("mailto:contact@phiacta.com");
+      expect(html).toContain("contact@phiacta.com");
+    }
+  });
 });
 
 describe("renderDownJson", () => {

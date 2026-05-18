@@ -107,6 +107,7 @@ export function renderDownHtml({ isApi }: { isApi: boolean }): string {
 ${LOGO_SVG}
 <h1>${headline}</h1>
 <p>${subtitle}</p>
+<p class="contact">Phiacta is self-hosted, so the occasional hiccup comes with the territory. If it's been a while, drop a line to <a href="mailto:contact@phiacta.com">contact@phiacta.com</a>.</p>
 <div class="actions">${primary}<a class="btn" href="https://phiacta.com">Home</a></div>
 <div class="status">HTTP 503 · Service Unavailable</div>
 </main>
@@ -167,8 +168,20 @@ h1 {
 }
 p {
   color: var(--muted);
-  margin: 0 0 1.5rem;
+  margin: 0 0 1rem;
   font-size: 0.95rem;
+}
+p.contact {
+  font-size: 0.85rem;
+  margin: 0 0 1.75rem;
+}
+p.contact a {
+  color: var(--accent);
+  text-decoration: none;
+  font-weight: 500;
+}
+p.contact a:hover {
+  text-decoration: underline;
 }
 .actions { display: flex; gap: 0.5rem; justify-content: center; flex-wrap: wrap; }
 a.btn {
