@@ -54,7 +54,15 @@ if [ -z "$ARG1" ]; then
     COMPOSE_FILE="$SCRIPT_DIR/docker-compose.yml"
     COMMAND="up"
 elif is_command "$ARG1"; then
-    # First arg is a known command — use the default compose file
+    # First arg is a known command — use the default compose file.
+    # Catch the reversed-order mistake: `./deploy.sh <cmd> <stack>` would
+    # otherwise silently drop the stack and run against the default file,
+    # spinning up a parallel stack that doesn't receive live traffic.
+    if [ $# -ge 2 ] && [ -f "$SCRIPT_DIR/docker-compose.${2}.yml" ]; then
+        echo "Error: stack name must come BEFORE the command." >&2
+        echo "Did you mean:  $0 $2 $ARG1" >&2
+        exit 1
+    fi
     COMPOSE_FILE="$SCRIPT_DIR/docker-compose.yml"
     COMMAND="$ARG1"
     shift
