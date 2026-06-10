@@ -50,10 +50,14 @@ services:
       FORGEJO_ADMIN_PASSWORD: phiacta-dev-password
       FORGEJO_ADMIN_EMAIL: admin@phiacta.local
       FORGEJO_ORG: phiacta
+      # Opt in to bootstrap-minted token auth (writes to the shared volume).
+      # Prod injects FORGEJO_ADMIN_TOKEN via env instead and leaves this unset.
+      FORGEJO_TOKEN_FILE: "/forgejo-token/admin-token"
     ports:
       - "${FORGEJO_PORT:-3000}:3000"
     volumes:
       - forgejo_data:/data
+      - forgejo_token:/forgejo-token
       - ${BACKEND_PATH:-../phiacta}/docker/forgejo-entrypoint.sh:/forgejo-entrypoint.sh:ro
     entrypoint: ["/bin/sh", "/forgejo-entrypoint.sh"]
     # Healthcheck waits for the version endpoint AND for the bootstrap
@@ -95,12 +99,17 @@ services:
       FORGEJO_ADMIN_PASSWORD: "phiacta-dev-password"
       FORGEJO_ORG: "phiacta"
       FORGEJO_WEBHOOK_SECRET: "dev-webhook-secret-not-for-production"
+      # Token written by the Forgejo bootstrap (shared volume). The backend
+      # authenticates with it instead of BasicAuth; falls back to BasicAuth
+      # until the file exists.
+      FORGEJO_ADMIN_TOKEN_FILE: "/forgejo-token/admin-token"
       ENABLED_PLUGINS: '["metadata", "types", "references", "tags", "search_tsv", "compiled_content", "search", "graph"]'
     ports:
       - "8000:8000"
     volumes:
       - ${BACKEND_PATH:-../phiacta}/src:/app/src
       - ${BACKEND_PATH:-../phiacta}/extensions:/app/extensions
+      - forgejo_token:/forgejo-token:ro
     depends_on:
       db:
         condition: service_healthy
@@ -136,6 +145,9 @@ services:
       FORGEJO_ORG: "phiacta"
       ENABLED_PLUGINS: '["compiled_content"]'
       JOB_TYPES: '["compiled_content"]'
+      FORGEJO_ADMIN_TOKEN_FILE: "/forgejo-token/admin-token"
+    volumes:
+      - forgejo_token:/forgejo-token:ro
     depends_on:
       db:
         condition: service_healthy
@@ -187,3 +199,4 @@ services:
 volumes:
   pgdata:
   forgejo_data:
+  forgejo_token:
